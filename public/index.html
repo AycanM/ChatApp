@@ -126,6 +126,131 @@
 
 </body>
     <script>
+		$(function () {
+			var socket = io.connect();
+			var $messageForm = $('#messageForm');
+			var $message = $('#message');
+			var $chat = $('#messages');
+			var $messageArea = $('#messageArea');
+			var $userDb = $('#userDb');
+			var $userFormArea = $('#userFormArea');
+			var $userForm = $('#userForm');
+			var $users = $('#users');
+			var $username = $('#username');
+			var $userInfo = $('#userInfo');
+			var $myusername = $('#myusername');
+			var username;
+
+			$messageForm.submit(function (e) {
+				e.preventDefault();
+
+				var filteredMessage = filterMessage($message.val());
+				filteredMessage.socketid = socket.id;
+				filteredMessage.socketid = socket.id;
+
+				socket.emit('sendMessage', filteredMessage, function (response) {
+
+					if (response.type === 0) { //GLOBAL
+						response.from = "(ToEveryOne) " + response.from;
+					} else if (response.type === 1) { //GROUP
+						response.from = "(ToGroup: " + response.to + ") " + response.from;
+					} else if (response.type === 2) { //PRIVATE MESSAGE
+						response.from = "(To: " + response.to + ") " + response.from;
+					}
+
+					$chat.append('<li> <strong>' + response.from + ': </strong>' + response.body);
+				});
+				$message.val('');
+				$message.focus();
+			});
+			
+			socket.on('newMessage', function (data) {
+				if (data.type === 0) { //GLOBAL
+					data.from = "(ToEveryOne) " + data.from;
+				} else if (data.type === 1) { //GROUP
+					data.from = "(ToGroup: " + data.to + "] " + data.from;
+				} else if (data.type === 2) { //PRIVATE MESSAGE
+					data.from = "(To: " + data.to + "] " + data.from;
+				}
+
+				$chat.append('<li><strong>' + data.from + ': </strong>' + data.body + '</li>');
+			});
+
+			$userForm.submit(function (e) {
+				e.preventDefault();
+				if ($.trim($username.val()) === "") {
+					alert("Username can not be empty!");
+				} else {
+					username = $username.val();
+					socket.emit('newUser', $username.val(), function (data) {
+						if (data) {
+							$userFormArea.hide();
+							$userInfo.show();
+							initMessages(data);
+							$messageArea.show();
+							$userDb.show();
+
+							$myusername.html(username);
+						}
+					});
+				}
+				$username.val('');
+			});
+		
+			socket.on('group-message', function (data) {
+				console.log("Gruptan mesaj geldi: " + data);
+			});
+
+			socket.on('allUsersInDB', function (data) {
+				var html = '';
+				for (i = 0; i < data.length; i++) {
+					html += '<li class="list-group-item">' + data[i].name + '</li>';
+				}
+				$users.html(html);
+			});
+			
+			function initMessages(data) {
+
+				for (let i = 0; i < data.messages.length; i++) {
+					var body = data.messages[i].body;
+					var from = data.messages[i].from;
+
+					if (data.messages[i].type === 0) { //GLOBAL
+						from = "(ToEveryOne) " + from;
+					} else if (data.type === 1) { //GROUP
+						from = "(ToGroup: " + data.to + "] " + from;
+					} else if (data.type === 2) { //PRIVATE MESSAGE
+						from = "(To: " + data.to + "] " + from;
+					}
+					$chat.append('<li><strong>' + from + ': </strong>' + body + '</li>');
+				}
+			}
+
+			function filterMessage(body) {
+				var message = { //To global as default
+					body: body,
+					type: 0,
+					from: username,
+					to: ""
+				}
+
+				if (body[0] === '$') { //To group
+					var groupName = body.substr(1, body.indexOf(" ") - 1);
+					var messageBody = body.substr(body.indexOf(" "));
+					message.to = groupName;
+					message.body = messageBody;
+					message.type = 1;
+				} else if (body[0] === '#') { //To private 
+					var personName = body.substr(1, body.indexOf(" ") - 1);
+					var messageBody = body.substr(body.indexOf(" ") + 1);
+					message.to = personName;
+					message.body = messageBody;
+					message.type = 2;
+				}
+				return message;
+			}
+
+		});
     </script>
 
 </html>
